@@ -1,68 +1,124 @@
-import jwt from "jsonwebtoken"
-import bcrypt from "bcryptjs"
 import type { NextRequest } from "next/server"
-import { db, type User } from "./db"
+import { getDb, clientPromise } from "./db"
+import { authUtils } from "./auth-utils"
+import type { JWTPayload } from "./auth-utils"
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
-
-export interface JWTPayload {
-  userId: number
-  email: string
-  isAdmin: boolean
+export interface User {
+  userId: string;
+  email: string;
+  fullName?: string;
+  isAdmin?: boolean;
+  wallet_balance?: number;
+  updated_at?: Date;
 }
 
+// Re-export JWTPayload for backward compatibility
+export { JWTPayload }
+
 export const auth = {
-  async hashPassword(password: string): Promise<string> {
+  // Use shared auth utilities
+  hashPassword: authUtils.hashPassword,
+  comparePassword: authUtils.comparePassword,
+  generateToken: authUtils.generateToken,
+  verifyToken: authUtils.verifyToken,
+  
+  async getUserById(userId: string): Promise<User | null> {
     try {
-      return await bcrypt.hash(password, 10)
+      console.log("Getting user by ID:", userId);
+      const db = getDb();
+      const usersCollection = db.collection('users');
+      
+      // Convert string ID to ObjectId
+      const { ObjectId } = require('mongodb');
+      let objectId;
+      
+      try {
+        objectId = new ObjectId(userId);
+      } catch (error) {
+        console.error("Invalid ObjectId format:", userId);
+        return null;
+      }
+      
+      const user = await usersCollection.findOne({ _id: objectId });
+      
+      if (!user) {
+        console.error("User not found with ID:", userId);
+        return null;
+      }
+      
+      console.log("User found:", user.email);
+      
+      return {
+        userId: user._id.toString(),
+        email: user.email,
+        fullName: user.full_name,
+        isAdmin: user.is_admin || false,
+        wallet_balance: user.wallet_balance || 0,
+        updated_at: user.updated_at
+      };
     } catch (error) {
-      console.error("Error hashing password:", error)
-      throw new Error("Failed to hash password")
-    }
-  },
-
-  async comparePassword(password: string, hash: string): Promise<boolean> {
-    try {
-      return await bcrypt.compare(password, hash)
-    } catch (error) {
-      console.error("Error comparing password:", error)
-      return false
-    }
-  },
-
-  generateToken(payload: JWTPayload): string {
-    try {
-      return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" })
-    } catch (error) {
-      console.error("Error generating token:", error)
-      throw new Error("Failed to generate token")
-    }
-  },
-
-  verifyToken(token: string): JWTPayload | null {
-    try {
-      return jwt.verify(token, JWT_SECRET) as JWTPayload
-    } catch (error) {
-      console.error("Error verifying token:", error)
-      return null
+      console.error("Error getting user by ID:", error);
+      return null;
     }
   },
 
   async getUserFromRequest(request: NextRequest): Promise<User | null> {
     try {
+      // Check for authorization header
       const authHeader = request.headers.get("authorization")
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      if (!authHeader) {
+        // Try to get token from cookies as fallback
+        const cookies = request.cookies.get("token")?.value
+        if (!cookies) {
+          console.log("No token found in cookies or headers");
+          return null
+        }
+        
+        // Validate token format before verification
+        if (!cookies || cookies.split('.').length !== 3) {
+          console.error("Invalid token format from cookies");
+          return null;
+        }
+        
+        const payload = this.verifyToken(cookies)
+        if (!payload) {
+          console.error("Token verification failed for cookie token");
+          return null
+        }
+        
+        return this.getUserById(payload.userId)
+      }
+      
+      // Process Bearer token from header
+      if (!authHeader.startsWith("Bearer ")) {
+        console.error("Authorization header does not start with 'Bearer '");
         return null
       }
 
       const token = authHeader.replace("Bearer ", "")
+      
+      // Validate token format before verification
+      if (!token || token.split('.').length !== 3) {
+        console.error("Invalid token format from Authorization header");
+        return null;
+      }
+      
+      console.log("Token from request:", token);
       const payload = this.verifyToken(token)
       if (!payload) {
+        console.error("Token verification failed");
         return null
       }
+      console.log("Payload from token:", payload);
 
-      const user = await db.getUserById(payload.userId)
-      return user || null
+      // Get user by ID from payload
+      const user = await this.getUserById(payload.userId);
+      if (!user) {
+        console.error("User not found with ID from token:", payload.userId);
+      } else {
+        console.log("User found from token:", user.email);
+      }
+      return user;
     } catch (error) {
       console.error("Error getting user from request:", error)
       return null

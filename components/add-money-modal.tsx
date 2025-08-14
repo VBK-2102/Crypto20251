@@ -63,13 +63,26 @@ export function AddMoneyModal({ isOpen, onClose, userId }: AddMoneyModalProps) {
       return
     }
 
+    const headers = getAuthHeaders()
+    if (!headers.Authorization) {
+      toast.error("You need to be logged in to add money")
+      return
+    }
+
     setLoading(true)
     try {
+      // Check if the token is properly formatted
+      const token = headers.Authorization.replace('Bearer ', '');
+      if (!token || token.split('.').length !== 3) {
+        toast.error("Invalid authentication token. Please log in again.")
+        return
+      }
+
       const response = await fetch("/api/payments/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...getAuthHeaders(),
+          ...headers,
         },
         body: JSON.stringify({
           amount: Number.parseFloat(amount),
@@ -81,6 +94,12 @@ export function AddMoneyModal({ isOpen, onClose, userId }: AddMoneyModalProps) {
       const data = await response.json()
 
       if (!response.ok) {
+        if (response.status === 401) {
+          toast.error("Authentication failed. Please log in again.")
+          // Could redirect to login page here
+          localStorage.removeItem('cryptopay_token'); // Clear invalid token
+          return
+        }
         throw new Error(data.error || "Failed to create payment")
       }
 
@@ -217,7 +236,7 @@ export function AddMoneyModal({ isOpen, onClose, userId }: AddMoneyModalProps) {
               </CardContent>
             </Card>
 
-            <div className="space-y-3">
+            <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
               {selectedPaymentMethod === 'upi' && currency === 'INR' && (
                 <div className="space-y-4">
                   <h3 className="text-lg font-semibold text-center">Scan to do UPI payment</h3>

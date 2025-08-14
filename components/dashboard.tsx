@@ -44,7 +44,7 @@ export function Dashboard({ user, onLogout, onShowAdmin }: DashboardProps) {
         fetch("/api/transactions", {
           headers: getAuthHeaders(),
         }),
-        fetch("/api/wallet/balances", {
+        fetch("/api/crypto/wallet-balances", {
           headers: getAuthHeaders(),
         }),
       ])

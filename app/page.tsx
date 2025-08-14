@@ -51,5 +51,5 @@ export default function Home() {
     return <AdminPanel token={token} onBack={() => setShowAdmin(false)} />
   }
 
-  return <SimpleDashboard user={user} onLogout={handleLogout} onShowAdmin={() => setShowAdmin(true)} />
+  return <SimpleDashboard user={user} token={token} onLogout={handleLogout} onShowAdmin={() => setShowAdmin(true)} />
 }

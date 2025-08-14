@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { simpleAuth } from "@/lib/simple-auth"
 import { dbOperations as db } from "@/lib/db"
+import { auth } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,9 +23,9 @@ export async function POST(request: NextRequest) {
     // Register user in the database
     const user = await simpleAuth.register(email, password, fullName)
     const token = auth.generateToken({
-      userId: newUser._id.toHexString(),
-      email: newUser.email,
-      isAdmin: newUser.is_admin,
+      userId: user._id.toHexString(),
+      email: user.email,
+      isAdmin: user.is_admin,
     })
 
     return NextResponse.json({

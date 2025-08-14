@@ -6,7 +6,11 @@ export async function GET(request: NextRequest) {
   try {
     const user = await auth.getUserFromRequest(request)
 
-    if (!user || !user.isAdmin) {
+    if (!user) {
+      return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
+    }
+    
+    if (!user.is_admin) {
       return NextResponse.json({ success: false, error: "Admin access required" }, { status: 403 })
     }
 

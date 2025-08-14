@@ -70,7 +70,7 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
   const fetchBalances = async () => {
     try {
       const [balanceRes, livePricesRes] = await Promise.all([
-        fetch("/api/wallet/balances", {
+        fetch("/api/crypto/wallet-balances", {
           headers: { Authorization: `Bearer ${token}` },
         }),
         fetch("/api/crypto/live-prices")
@@ -87,7 +87,13 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
       let livePrices = []
       if (livePricesRes.ok) {
         const pricesData = await livePricesRes.json()
-        livePrices = pricesData.success ? pricesData.data : []
+        // Transform the API response to the expected format
+        livePrices = Object.entries(pricesData).map(([symbol, data]: [string, any]) => ({
+          symbol,
+          price_usd: data.usd,
+          price_inr: data.usd * 83.5, // Convert USD to INR using approximate exchange rate
+          change_24h: data.usd_24h_change
+        }))
       }
 
       setWalletBalances(balanceData)

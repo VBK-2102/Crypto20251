@@ -1,8 +1,10 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
   "/page": "app/page.js",
   "/api/crypto/live-prices/route": "app/api/crypto/live-prices/route.js",
   "/api/crypto/wallet-balances/route": "app/api/crypto/wallet-balances/route.js",
-  "/api/transactions/route": "app/api/transactions/route.js",
   "/api/wallet/balances/route": "app/api/wallet/balances/route.js",
-  "/api/payments/create/route": "app/api/payments/create/route.js"
+  "/api/transactions/route": "app/api/transactions/route.js",
+  "/api/payments/create/route": "app/api/payments/create/route.js",
+  "/api/payments/webhook/route": "app/api/payments/webhook/route.js"
 }

@@ -1,11 +1,11 @@
 import { dbOperations as db, User } from "./db";
-import bcrypt from "bcryptjs";
 import { ObjectId } from "mongodb";
+import { authUtils } from "./auth-utils";
 
 export const simpleAuth = {
   async login(email: string, password: string): Promise<User | null> {
     const user = await db.getUserByEmail(email);
-    if (user && (await bcrypt.compare(password, user.password_hash))) {
+    if (user && (await authUtils.comparePassword(password, user.password_hash))) {
       // Return a simplified user object for the frontend, excluding sensitive data
       return {
         _id: user._id,
@@ -27,7 +27,7 @@ export const simpleAuth = {
       throw new Error("User with this email already exists.");
     }
 
-    const passwordHash = await bcrypt.hash(password, 10); // Hash password with salt rounds
+    const passwordHash = await authUtils.hashPassword(password); // Hash password with salt rounds
 
     const newUser = await db.createUser(email, passwordHash, fullName);
 
@@ -43,31 +43,25 @@ export const simpleAuth = {
     } as User;
   },
 
+  // This method is deprecated - use authUtils.generateToken instead
   generateToken(user: User): string {
-    // Simple token - base64 encoded user data.
-    // In a real app, use JWTs with a secret key.
-    const userData = {
-      id: user._id?.toHexString(), // Convert ObjectId to string
+    // Generate a proper JWT token
+    return authUtils.generateToken({
+      userId: user._id?.toHexString(),
       email: user.email,
-      fullName: user.full_name,
-      walletBalance: user.wallet_balance,
-      isAdmin: user.is_admin,
-    };
-    return btoa(JSON.stringify(userData));
+      isAdmin: user.is_admin || false
+    });
   },
 
+  // This method is deprecated - use authUtils.verifyToken instead
   verifyToken(token: string): User | null {
     try {
-      const decoded = JSON.parse(atob(token));
-      // Reconstruct user object, converting id back to ObjectId if needed for db operations
-      return {
-        _id: new ObjectId(decoded.id),
-        email: decoded.email,
-        full_name: decoded.fullName,
-        wallet_balance: decoded.walletBalance,
-        is_admin: decoded.isAdmin,
-        // created_at and updated_at are not in the token, so they will be undefined
-      } as User;
+      // Verify the JWT token
+      const payload = authUtils.verifyToken(token);
+      if (!payload) return null;
+      
+      // Get the user from the database using the userId from the payload
+      return db.getUserById(payload.userId);
     } catch (error) {
       console.error("Token verification failed:", error);
       return null;

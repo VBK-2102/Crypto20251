@@ -48,32 +48,58 @@ export function LiveCryptoDashboard({}: LiveCryptoDashboardProps) {
   const [cacheAge, setCacheAge] = useState<number>(0)
   const { getAuthHeaders } = useAuth();
 
+  // Helper function to get crypto name from symbol
+  const getCryptoName = (symbol: string): string => {
+    const cryptoNames: Record<string, string> = {
+      BTC: "Bitcoin",
+      ETH: "Ethereum",
+      SOL: "Solana",
+      DOGE: "Dogecoin"
+    };
+    return cryptoNames[symbol] || symbol;
+  };
+
   useEffect(() => {
     fetchLiveData()
     // Increased refresh interval to 60 seconds to avoid rate limits
     const interval = setInterval(fetchLiveData, 60000)
     return () => clearInterval(interval)
-  }, []) // Remove token from dependency array
+  }, [])
 
   const fetchLiveData = async () => {
     try {
+      // Get token directly from localStorage
+      const token = typeof window !== 'undefined' ? localStorage.getItem('cryptopay_token') : null;
+      
       const [pricesRes, balancesRes] = await Promise.all([
         fetch("/api/crypto/live-prices"),
         fetch("/api/crypto/wallet-balances", {
-          headers: getAuthHeaders(), // Use getAuthHeaders()
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
         }),
       ])
 
       if (pricesRes.ok) {
         const pricesData = await pricesRes.json()
-        if (pricesData.success) {
-          setLivePrices(pricesData.data)
-          setLastUpdate(pricesData.timestamp)
-          setDataSource(pricesData.source)
-          setApiMessage(pricesData.message || "")
-          setIsCached(pricesData.cached || false)
-          setCacheAge(pricesData.cacheAge || 0)
-        }
+        // Transform the API response to the expected format
+        const formattedPrices = Object.entries(pricesData).map(([symbol, data]: [string, any]) => ({
+          symbol,
+          name: getCryptoName(symbol),
+          price_usd: data.usd,
+          price_inr: data.usd * 83.5, // Convert USD to INR using approximate exchange rate
+          change_24h: data.usd_24h_change,
+          volume_24h: 0, // Not provided in the API
+          price_change: data.usd_24h_change,
+          icon: "", // Not provided in the API
+          lastUpdated: new Date().toISOString(),
+          source: "API"
+        }))
+        
+        setLivePrices(formattedPrices)
+        setLastUpdate(new Date().toISOString())
+        setDataSource("CryptoAPI")
+        setApiMessage("")
+        setIsCached(false)
+        setCacheAge(0)
       }
 
       if (balancesRes.ok) {
