@@ -5,15 +5,15 @@ export const mockUsers = [
     email: "admin@cryptopay.com",
     password: "admin123",
     fullName: "Admin User",
-    // Multi-currency wallet balances - Reset to empty
+    // Multi-currency wallet balances
     walletBalances: {
-      INR: 0,
-      USD: 0,
-      EUR: 0,
-      GBP: 0,
-      BTC: 0,
-      ETH: 0,
-      USDT: 0,
+      INR: 15000,
+      USD: 200,
+      EUR: 150,
+      GBP: 100,
+      BTC: 0.05,
+      ETH: 1.2,
+      USDT: 500,
     },
     isAdmin: true,
   },
@@ -23,13 +23,13 @@ export const mockUsers = [
     password: "user123",
     fullName: "John Doe",
     walletBalances: {
-      INR: 0,
-      USD: 0,
-      EUR: 0,
-      GBP: 0,
-      BTC: 0,
-      ETH: 0,
-      USDT: 0,
+      INR: 8500,
+      USD: 100,
+      EUR: 75,
+      GBP: 50,
+      BTC: 0.00285,
+      ETH: 0.5,
+      USDT: 200,
     },
     isAdmin: false,
   },
@@ -72,8 +72,52 @@ export const currencies = [
   { code: "USDT", symbol: "₮", name: "Tether", type: "crypto" },
 ]
 
-// Reset transactions to empty array
-export const mockTransactions: any[] = []
+// Mock transactions data
+export const mockTransactions: any[] = [
+  {
+    id: 1,
+    user_id: "689d92f87490ba3005de3d43", // For user@example.com - using MongoDB ObjectId format
+    type: "deposit",
+    amount: 5000,
+    currency: "INR",
+    status: "completed",
+    payment_method: "UPI",
+    upi_reference: "UPI123456789",
+    created_at: "2023-06-15T10:30:00Z"
+  },
+  {
+    id: 2,
+    user_id: "689d92f87490ba3005de3d43", // For user@example.com
+    type: "crypto_buy",
+    amount: 1000,
+    currency: "INR",
+    crypto_amount: 0.00285,
+    crypto_currency: "BTC",
+    status: "completed",
+    transaction_hash: "0x123abc456def789ghi",
+    created_at: "2023-06-16T14:20:00Z"
+  },
+  {
+    id: 3,
+    user_id: "689d92f87490ba3005de3d43", // For user@example.com
+    type: "withdrawal",
+    amount: 500,
+    currency: "INR",
+    status: "pending",
+    payment_method: "Bank Transfer",
+    created_at: "2023-06-18T09:15:00Z"
+  },
+  {
+    id: 4,
+    user_id: "admin123", // For admin user
+    type: "deposit",
+    amount: 10000,
+    currency: "INR",
+    status: "completed",
+    payment_method: "Credit Card",
+    created_at: "2023-06-10T11:45:00Z"
+  }
+]
 
 // Helper function to update user balance
 export function updateUserBalance(userId: number, currency: string, amount: number) {

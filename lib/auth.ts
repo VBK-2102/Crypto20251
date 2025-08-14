@@ -90,12 +90,12 @@ export const auth = {
       }
       
       // Process Bearer token from header
-      if (!authHeader.startsWith("Bearer ")) {
-        console.error("Authorization header does not start with 'Bearer '");
-        return null
+      let token = authHeader
+      if (authHeader.startsWith("Bearer ")) {
+        token = authHeader.replace("Bearer ", "")
       }
-
-      const token = authHeader.replace("Bearer ", "")
+      
+      console.log("Token from request:", token)
       
       // Validate token format before verification
       if (!token || token.split('.').length !== 3) {

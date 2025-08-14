@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { TrendingUp, TrendingDown, Plus, ArrowUpRight, LogOut, Shield, Bitcoin, Wallet, RefreshCw, ArrowRightLeft, Plug, CreditCard } from 'lucide-react'
+import { TrendingUp, TrendingDown, Plus, ArrowUpRight, LogOut, Shield, Bitcoin, Wallet, RefreshCw, ArrowRightLeft, Plug, CreditCard, User } from 'lucide-react'
 import { AddMoneyModal } from "./add-money-modal"
 import { WithdrawModal } from "./withdraw-modal"
 import { SendCryptoModal } from "./send-crypto-modal"
@@ -113,6 +113,12 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
 
   const connectWallet = async () => {
     if (typeof window !== 'undefined' && (window as any).ethereum) {
+      // Prevent multiple simultaneous connection attempts
+      if (isConnecting) {
+        console.log("Connection already in progress");
+        return;
+      }
+      
       setIsConnecting(true);
       try {
         const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
@@ -124,7 +130,11 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
         console.error("Error connecting to MetaMask:", error);
         alert(`Failed to connect wallet: ${error.message}`);
       } finally {
-        setIsConnecting(false);
+        // Add a small delay before setting isConnecting to false
+        // to prevent rapid consecutive clicks
+        setTimeout(() => {
+          setIsConnecting(false);
+        }, 500);
       }
     } else {
       alert('MetaMask or a compatible Ethereum wallet is not installed. Please install it to connect.');
@@ -232,11 +242,30 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
                   {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
                 </Button>
               ) : (
-                <Button variant="outline" size="sm" onClick={connectWallet} disabled={isConnecting}>
-                  <Plug className="h-4 w-4 mr-2" />
-                  {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={connectWallet} 
+                  disabled={isConnecting}
+                  className={isConnecting ? "opacity-70 cursor-not-allowed" : ""}
+                >
+                  {isConnecting ? (
+                    <>
+                      <span className="animate-spin mr-2">⟳</span>
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <Plug className="h-4 w-4 mr-2" />
+                      Connect Wallet
+                    </>
+                  )}
                 </Button>
               )}
+              <Button variant="outline" size="sm" onClick={() => window.location.href = '/profile'}>
+                <User className="h-4 w-4 mr-2" />
+                Profile
+              </Button>
               <Button variant="ghost" size="sm" onClick={onLogout}>
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout

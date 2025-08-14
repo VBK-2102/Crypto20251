@@ -21,8 +21,8 @@ import {
 import { currencies } from "@/lib/mock-data"
 
 interface Transaction {
-  id: number
-  user_id: number
+  _id: string
+  user_id: string // MongoDB ObjectId as string
   type: string
   amount: number
   currency: string
@@ -37,6 +37,7 @@ interface Transaction {
   upi_reference?: string
   created_at: string
   updated_at?: string
+  fee?: number
 }
 
 interface TransactionHistoryProps {
@@ -52,10 +53,16 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
   const [typeFilter, setTypeFilter] = useState("all")
   const [showAddMoney, setShowAddMoney] = useState(false)
   useEffect(() => {
-    fetchTransactions()
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(fetchTransactions, 5000)
-    return () => clearInterval(interval)
+    if (token) {
+      console.log("Transaction History: Token available, fetching transactions")
+      fetchTransactions()
+      // Auto-refresh every 30 seconds
+      const interval = setInterval(fetchTransactions, 30000)
+      return () => clearInterval(interval)
+    } else {
+      console.log("Transaction History: No token available")
+      setIsLoading(false)
+    }
   }, [token])
 
   useEffect(() => {
@@ -63,16 +70,33 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
   }, [transactions, searchTerm, statusFilter, typeFilter])
 
   const fetchTransactions = async () => {
+    if (!token) {
+      console.log("No token available for fetching transactions")
+      setIsLoading(false)
+      return
+    }
+    
+    console.log("Fetching transactions with token:", token.substring(0, 10) + "...")
+    
     try {
       const response = await fetch("/api/transactions", {
         headers: { Authorization: `Bearer ${token}` },
       })
 
+      console.log("Transaction API response status:", response.status)
+
       if (response.ok) {
         const data = await response.json()
+        console.log("Transaction data received:", data)
+        
         if (data.success) {
           setTransactions(data.data || [])
+          console.log("Transactions loaded:", data.data?.length || 0, "transactions")
+        } else {
+          console.error("Failed to fetch transactions:", data.error)
         }
+      } else {
+        console.error("Error response from transactions API:", response.status)
       }
     } catch (error) {
       console.error("Error fetching transactions:", error)
@@ -334,7 +358,7 @@ export function TransactionHistory({ token }: TransactionHistoryProps) {
           <div className="space-y-3">
             {filteredTransactions.map((transaction) => (
               <div
-                key={transaction.id}
+                key={transaction._id}
                 className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <div className="flex items-center space-x-4">

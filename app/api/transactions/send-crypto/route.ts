@@ -1,6 +1,6 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { mockUsers, mockTransactions, mockCryptoPrices } from "@/lib/mock-data"
+import { getCollections, ObjectId } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,178 +16,136 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid transaction parameters" }, { status: 400 })
     }
 
+    // Get collections
+    const { users, transactions, cryptoPrices } = getCollections()
+
     // Find sender and recipient
-    const sender = mockUsers.find((u) => u.id === user.userId)
-    const recipient = mockUsers.find((u) => u.id === recipientId)
+    const sender = await users.findOne({ _id: new ObjectId(user.userId) })
+    const recipient = await users.findOne({ _id: new ObjectId(recipientId) })
 
     if (!sender || !recipient) {
       return NextResponse.json({ success: false, error: "User not found" }, { status: 404 })
     }
 
     // Get crypto price data
-    const cryptoPrice = mockCryptoPrices.find((c) => c.symbol === cryptoSymbol)
+    const cryptoPrice = await cryptoPrices.findOne({ symbol: cryptoSymbol })
     if (!cryptoPrice) {
       return NextResponse.json({ success: false, error: "Crypto price not found" }, { status: 400 })
     }
 
-    // Calculate total available crypto for sender (direct + from fiat)
-    const senderDirectCrypto = sender.walletBalances[cryptoSymbol] || 0
+    // In our MongoDB implementation, we only have a single wallet_balance field in INR
+    // So we'll use that for the conversion
+    const senderFiatBalance = sender.wallet_balance || 0
 
-    // Calculate total fiat balance in INR for conversion
-    let senderTotalFiatINR = 0
-    Object.entries(sender.walletBalances).forEach(([currency, amount]) => {
-      if (currency === "INR") {
-        senderTotalFiatINR += amount
-      } else if (currency === "USD") {
-        senderTotalFiatINR += amount * 83.5
-      } else if (currency === "EUR") {
-        senderTotalFiatINR += amount * 90
-      } else if (currency === "GBP") {
-        senderTotalFiatINR += amount * 105
-      }
-    })
-
-    const cryptoFromFiatINR = senderTotalFiatINR / cryptoPrice.price_inr
-    const totalAvailableCrypto = senderDirectCrypto + cryptoFromFiatINR
-
-    // Check if sender has enough crypto (direct or convertible from fiat)
-    if (cryptoAmount > totalAvailableCrypto) {
+    // Calculate how much crypto can be purchased with the available INR balance
+    const cryptoFromFiatINR = senderFiatBalance / cryptoPrice.price_inr
+    
+    // Check if sender has enough balance
+    if (cryptoAmount > cryptoFromFiatINR) {
       return NextResponse.json(
         {
           success: false,
-          error: `Insufficient balance. Available: ${totalAvailableCrypto.toFixed(8)} ${cryptoSymbol}`,
+          error: `Insufficient balance. Available: ${cryptoFromFiatINR.toFixed(8)} ${cryptoSymbol} (${senderFiatBalance.toFixed(2)} INR)`,
         },
         { status: 400 },
       )
     }
 
-    // Calculate recipient fiat amount based on recipient currency
-    let recipientFiatAmount = 0
-    if (recipientCurrency === "INR") {
-      recipientFiatAmount = cryptoAmount * cryptoPrice.price_inr
-    } else if (recipientCurrency === "USD") {
-      recipientFiatAmount = cryptoAmount * cryptoPrice.price_usd
-    } else if (recipientCurrency === "EUR") {
-      recipientFiatAmount = cryptoAmount * cryptoPrice.price_usd * 0.85
-    } else if (recipientCurrency === "GBP") {
-      recipientFiatAmount = cryptoAmount * cryptoPrice.price_usd * 0.75
-    }
+    // Calculate recipient fiat amount based on recipient currency (only INR supported in this version)
+    const recipientFiatAmount = cryptoAmount * cryptoPrice.price_inr
 
     // Deduct from sender's balance
-    let sendingMethod = ""
-    let deductedFiatAmount = 0
+    const requiredFiatINR = cryptoAmount * cryptoPrice.price_inr
+    
+    // Update sender's balance in the database
+    const updatedSender = await users.findOneAndUpdate(
+      { _id: new ObjectId(user.userId) },
+      { $inc: { wallet_balance: -requiredFiatINR }, $set: { updated_at: new Date() } },
+      { returnDocument: 'after' }
+    )
 
-    if (senderDirectCrypto >= cryptoAmount) {
-      // Send from direct crypto balance
-      sender.walletBalances[cryptoSymbol] -= cryptoAmount
-      sendingMethod = "crypto_direct"
-    } else {
-      // Need to use fiat balance (convert fiat to crypto)
-      const requiredFiatINR = cryptoAmount * cryptoPrice.price_inr
-
-      // Deduct proportionally from available fiat currencies
-      let remainingToDeduct = requiredFiatINR
-
-      // Deduct from INR first
-      if (sender.walletBalances["INR"] && remainingToDeduct > 0) {
-        const deductFromINR = Math.min(sender.walletBalances["INR"], remainingToDeduct)
-        sender.walletBalances["INR"] -= deductFromINR
-        remainingToDeduct -= deductFromINR
-        deductedFiatAmount += deductFromINR
-      }
-
-      // Then from USD (convert to INR equivalent)
-      if (sender.walletBalances["USD"] && remainingToDeduct > 0) {
-        const usdNeeded = remainingToDeduct / 83.5
-        const deductFromUSD = Math.min(sender.walletBalances["USD"], usdNeeded)
-        sender.walletBalances["USD"] -= deductFromUSD
-        remainingToDeduct -= deductFromUSD * 83.5
-        deductedFiatAmount += deductFromUSD * 83.5
-      }
-
-      // Then from EUR (convert to INR equivalent)
-      if (sender.walletBalances["EUR"] && remainingToDeduct > 0) {
-        const eurNeeded = remainingToDeduct / 90
-        const deductFromEUR = Math.min(sender.walletBalances["EUR"], eurNeeded)
-        sender.walletBalances["EUR"] -= deductFromEUR
-        remainingToDeduct -= deductFromEUR * 90
-        deductedFiatAmount += deductFromEUR * 90
-      }
-
-      // Finally from GBP (convert to INR equivalent)
-      if (sender.walletBalances["GBP"] && remainingToDeduct > 0) {
-        const gbpNeeded = remainingToDeduct / 105
-        const deductFromGBP = Math.min(sender.walletBalances["GBP"], gbpNeeded)
-        sender.walletBalances["GBP"] -= deductFromGBP
-        remainingToDeduct -= deductFromGBP * 105
-        deductedFiatAmount += deductFromGBP * 105
-      }
-
-      // Also deduct any direct crypto if available
-      if (senderDirectCrypto > 0) {
-        sender.walletBalances[cryptoSymbol] -= senderDirectCrypto
-      }
-
-      sendingMethod = "fiat_to_crypto"
+    if (!updatedSender) {
+      return NextResponse.json({ success: false, error: "Failed to update sender's balance" }, { status: 500 })
     }
 
-    // Add fiat amount to recipient's balance (NOT crypto)
-    recipient.walletBalances[recipientCurrency] =
-      (recipient.walletBalances[recipientCurrency] || 0) + recipientFiatAmount
+    // Add fiat amount to recipient's balance
+    const updatedRecipient = await users.findOneAndUpdate(
+      { _id: new ObjectId(recipientId) },
+      { $inc: { wallet_balance: recipientFiatAmount }, $set: { updated_at: new Date() } },
+      { returnDocument: 'after' }
+    )
+
+    if (!updatedRecipient) {
+      // Rollback sender's balance if recipient update fails
+      await users.updateOne(
+        { _id: new ObjectId(user.userId) },
+        { $inc: { wallet_balance: requiredFiatINR }, $set: { updated_at: new Date() } }
+      )
+      return NextResponse.json({ success: false, error: "Failed to update recipient's balance" }, { status: 500 })
+    }
 
     // Create transaction records
     const transactionId = `CRYPTO${Date.now()}`
-    const timestamp = new Date().toISOString()
+    const now = new Date()
 
     // Sender's transaction (what they sent)
     const senderTransaction = {
-      id: mockTransactions.length + 1,
-      user_id: sender.userId,
-      type: "crypto_send" as const,
+      user_id: new ObjectId(user.userId),
+      type: "crypto_send",
       amount: cryptoAmount,
       currency: cryptoSymbol,
       crypto_amount: cryptoAmount,
       crypto_currency: cryptoSymbol,
-      fiat_amount: recipientFiatAmount,
-      fiat_currency: recipientCurrency,
-      status: "completed" as const,
+      status: "completed",
       payment_method: "crypto_wallet",
       transaction_hash: transactionId,
       receiver_address: recipient.email,
-      upi_reference: note || `Sent ${cryptoAmount.toFixed(8)} ${cryptoSymbol} to ${recipient.fullName}`,
-      created_at: timestamp,
-      updated_at: timestamp,
+      upi_reference: note || `Sent ${cryptoAmount.toFixed(8)} ${cryptoSymbol} to ${recipient.full_name}`,
+      created_at: now,
+      updated_at: now,
+      fee: 0 // No fee for now
     }
 
     // Recipient's transaction (what they received in fiat)
     const recipientTransaction = {
-      id: mockTransactions.length + 2,
-      user_id: recipient.id,
-      type: "crypto_receive_as_fiat" as const,
+      user_id: new ObjectId(recipientId),
+      type: "crypto_receive_as_fiat",
       amount: recipientFiatAmount,
       currency: recipientCurrency,
       crypto_amount: cryptoAmount,
       crypto_currency: cryptoSymbol,
-      fiat_amount: recipientFiatAmount,
-      fiat_currency: recipientCurrency,
-      status: "completed" as const,
+      status: "completed",
       payment_method: "crypto_conversion",
       transaction_hash: transactionId,
       receiver_address: sender.email,
-      upi_reference:
-        note || `Received ${cryptoAmount.toFixed(8)} ${cryptoSymbol} as ${recipientCurrency} from ${sender.fullName}`,
-      created_at: timestamp,
-      updated_at: timestamp,
+      upi_reference: note || `Received ${cryptoAmount.toFixed(8)} ${cryptoSymbol} as ${recipientCurrency} from ${sender.full_name}`,
+      created_at: now,
+      updated_at: now,
+      fee: 0 // No fee for now
     }
 
-    mockTransactions.push(senderTransaction, recipientTransaction)
+    // Insert transactions into MongoDB
+    const insertResult = await transactions.insertMany([senderTransaction, recipientTransaction])
+
+    if (!insertResult.acknowledged) {
+      // Rollback both balances if transaction creation fails
+      await users.updateOne(
+        { _id: new ObjectId(user.userId) },
+        { $inc: { wallet_balance: requiredFiatINR }, $set: { updated_at: new Date() } }
+      )
+      await users.updateOne(
+        { _id: new ObjectId(recipientId) },
+        { $inc: { wallet_balance: -recipientFiatAmount }, $set: { updated_at: new Date() } }
+      )
+      return NextResponse.json({ success: false, error: "Failed to create transaction records" }, { status: 500 })
+    }
 
     return NextResponse.json({
       success: true,
       transactionId,
       message: `${cryptoAmount.toFixed(8)} ${cryptoSymbol} sent successfully`,
-      senderNewBalances: sender.walletBalances,
-      recipientNewBalances: recipient.walletBalances,
+      senderNewBalance: updatedSender.wallet_balance,
+      recipientNewBalance: updatedRecipient.wallet_balance,
       conversionDetails: {
         sentCryptoAmount: cryptoAmount,
         sentCryptoSymbol: cryptoSymbol,

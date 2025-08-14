@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { mockTransactions, updateUserBalance, mockWallets } from "@/lib/mock-data"
+import { dbOperations as db, clientPromise } from '@/lib/db';
+import { paymentGateways } from '@/lib/payment-gateways';
 
 export async function POST(request: NextRequest) {
+  await clientPromise; // Ensure DB connection is established
   try {
     const user = await auth.getUserFromRequest(request)
 
@@ -10,21 +12,43 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 })
     }
 
-    const { amount, currency, targetCrypto } = await request.json()
+    const { amount, currency, targetCrypto, paymentMethod = "upi" } = await request.json()
 
     if (!amount || !currency || !targetCrypto) {
       return NextResponse.json({ success: false, error: "Missing required fields" }, { status: 400 })
     }
 
-    // In a real app, you'd use a payment gateway to create a payment session
-    // and get a transaction ID. Here, we'll just create a mock transaction.
+    // Generate a unique transaction ID
+    const transactionId = `TXN_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`
+    
+    // Get current exchange rate from the database or external API
+    // For now, we'll use a mock rate
+    const rate = 30000 // Mock exchange rate for BTC in INR
+    const fees = amount * 0.02 // 2% fee
 
-    const transactionId = `MOCK_TXN_${Date.now()}`
-    const rate = 30000 // Mock exchange rate
-    const fees = 5 // Mock fees
+    // Create a payment session with the appropriate payment gateway
+    const paymentResponse = await paymentGateways.createPayment({
+      amount,
+      currency,
+      description: `Add ${amount} ${currency} to wallet`,
+      metadata: {
+        userId: user.userId,
+        targetCrypto,
+        transactionId
+      },
+      returnUrl: `${request.headers.get('origin') || 'http://localhost:3000'}/payment/success?txnId=${transactionId}`,
+      cancelUrl: `${request.headers.get('origin') || 'http://localhost:3000'}/payment/cancel?txnId=${transactionId}`,
+    }, paymentMethod);
 
+    if (!paymentResponse.success) {
+      return NextResponse.json({ 
+        success: false, 
+        error: paymentResponse.error || "Failed to create payment with gateway" 
+      }, { status: 500 });
+    }
+
+    // Create a new transaction in the database
     const newTransaction = {
-      transaction_id: mockTransactions.length + 1,
       user_id: user.userId,
       transaction_hash: transactionId,
       amount: amount,
@@ -33,13 +57,15 @@ export async function POST(request: NextRequest) {
       status: "pending",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-      payment_method: "card",
-      crypto_amount: amount / rate,
+      payment_method: paymentMethod,
+      crypto_amount: (amount - fees) / rate,
       crypto_currency: targetCrypto,
       fee: fees,
+      upi_reference: paymentResponse.paymentId || `${paymentMethod.toUpperCase()}_REF_${Date.now()}`
     }
 
-    mockTransactions.push(newTransaction)
+    // Save transaction to database
+    await db.createTransaction(newTransaction);
 
     return NextResponse.json({
       success: true,
@@ -50,6 +76,8 @@ export async function POST(request: NextRequest) {
       rate,
       fees,
       expectedCrypto: (amount - fees) / rate,
+      paymentUrl: paymentResponse.paymentUrl,
+      paymentId: paymentResponse.paymentId
     })
   } catch (error) {
     console.error("Payment creation error:", error)

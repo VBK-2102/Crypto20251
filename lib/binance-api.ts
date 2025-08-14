@@ -39,8 +39,13 @@ export class BinanceAPI {
     this.apiKey = process.env.BINANCE_API_KEY || ''
     this.secretKey = process.env.BINANCE_API_SECRET || ''
     this.baseURL = "https://api.binance.com"
-    if (!this.apiKey || !this.secretKey) {
-      throw new Error('Binance API key/secret not set in environment variables.')
+    
+    // Log API key status for debugging
+    console.log('Binance API Key status:', this.apiKey ? 'Present' : 'Missing')
+    
+    // Don't throw error, use fallback instead
+    if (!this.apiKey) {
+      console.warn('Binance API key not set in environment variables. Using fallback data.')
     }
   }
 
@@ -93,23 +98,35 @@ export class BinanceAPI {
       return this.priceCache!.data
     }
 
+    // If API key is missing, go directly to alternative source
+    if (!this.apiKey) {
+      console.log('No Binance API key available, using alternative source')
+      return await this.getAlternativePrices()
+    }
+
     try {
       // First try Binance
-      const symbols = ['BTCUSDT', 'ETHUSDT']
+      const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT']
+      console.log('Fetching prices from Binance API...')
+      
       const response = await fetch(`${this.baseURL}/api/v3/ticker/price`, {
-        headers: this.getHeaders()
+        headers: this.getHeaders(true) // Include API key in headers
       })
       
-      if (response.status === 451) {
-        console.log('Binance API restricted in this region, using alternative source')
+      console.log('Binance API response status:', response.status)
+      
+      if (response.status === 451 || response.status === 401) {
+        console.log('Binance API restricted or unauthorized, using alternative source')
         return await this.getAlternativePrices()
       }
       
       if (!response.ok) {
-        throw new Error(`Binance API error: ${response.status}`)
+        console.error(`Binance API error: ${response.status}`)
+        return await this.getAlternativePrices()
       }
       
       const allPrices: BinanceTickerPrice[] = await response.json()
+      console.log('Received prices from Binance:', allPrices.length)
       
       // Filter for our supported cryptos and convert to our format
       const cryptoPrices = symbols.map(symbol => {
@@ -154,7 +171,7 @@ export class BinanceAPI {
       // Apply rate limiting
       await this.waitForRateLimit()
       
-      const coinIds = 'bitcoin,ethereum,tether'
+      const coinIds = 'bitcoin,ethereum,tether,solana,dogecoin'
       const response = await fetch(
         `https://api.coingecko.com/api/v3/simple/price?ids=${coinIds}&vs_currencies=usd,inr&include_24hr_change=true`,
         {
@@ -212,6 +229,26 @@ export class BinanceAPI {
           icon: '₮',
           lastUpdated: new Date().toISOString(),
           source: 'coingecko'
+        },
+        {
+          symbol: 'SOL',
+          name: 'Solana',
+          price_usd: data.solana?.usd || 170.0,
+          price_inr: data.solana?.inr || 14195.0,
+          change_24h: data.solana?.usd_24h_change || 0,
+          icon: 'S',
+          lastUpdated: new Date().toISOString(),
+          source: 'coingecko'
+        },
+        {
+          symbol: 'DOGE',
+          name: 'Dogecoin',
+          price_usd: data.dogecoin?.usd || 0.16,
+          price_inr: data.dogecoin?.inr || 13.36,
+          change_24h: data.dogecoin?.usd_24h_change || 0,
+          icon: 'D',
+          lastUpdated: new Date().toISOString(),
+          source: 'coingecko'
         }
       ]
       
@@ -243,7 +280,7 @@ export class BinanceAPI {
   // Get 24hr price change statistics with proper error handling
   async get24hrStats(): Promise<any[]> {
     try {
-      const symbols = ['BTCUSDT', 'ETHUSDT']
+      const symbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'DOGEUSDT']
       const promises = symbols.map(symbol => 
         fetch(`${this.baseURL}/api/v3/ticker/24hr?symbol=${symbol}`, {
           headers: this.getHeaders()
@@ -335,7 +372,9 @@ export class BinanceAPI {
       ETH: 2.8765,
       USDT: 1250.50,
       USDC: 500.00,
-      BNB: 12.345
+      BNB: 12.345,
+      SOL: 25.75,
+      DOGE: 5000.00
     }
   }
 
@@ -398,7 +437,9 @@ export class BinanceAPI {
       ETH: '0x',
       USDT: '0x',
       USDC: '0x',
-      BNB: 'bnb'
+      BNB: 'bnb',
+      SOL: 'sol',
+      DOGE: 'D'
     }
     
     const prefix = prefixes[symbol as keyof typeof prefixes] || '0x'
@@ -429,7 +470,9 @@ export class BinanceAPI {
       ETH: 'Ethereum',
       USDT: 'Tether',
       USDC: 'USD Coin',
-      BNB: 'Binance Coin'
+      BNB: 'Binance Coin',
+      SOL: 'Solana',
+      DOGE: 'Dogecoin'
     }
     return names[symbol] || symbol
   }
@@ -440,7 +483,9 @@ export class BinanceAPI {
       ETH: 'Ξ',
       USDT: '₮',
       USDC: '$',
-      BNB: 'B'
+      BNB: 'B',
+      SOL: 'S',
+      DOGE: 'D'
     }
     return icons[symbol] || '₿'
   }
@@ -451,6 +496,8 @@ export class BinanceAPI {
     const btcBase = 42000
     const ethBase = 3200
     const usdtBase = 1.0
+    const solBase = 170.0
+    const dogeBase = 0.16
     
     const variation = () => (Math.random() - 0.5) * 0.02 // ±1% variation
     
@@ -482,6 +529,26 @@ export class BinanceAPI {
         price_inr: usdtBase * 83.5 * (1 + variation() * 0.1),
         change_24h: (Math.random() - 0.5) * 0.5, // ±0.25% change
         icon: '₮',
+        lastUpdated: new Date().toISOString(),
+        source: 'fallback'
+      },
+      {
+        symbol: 'SOL',
+        name: 'Solana',
+        price_usd: solBase * (1 + variation()),
+        price_inr: solBase * 83.5 * (1 + variation()),
+        change_24h: (Math.random() - 0.5) * 9, // ±4.5% change
+        icon: 'S',
+        lastUpdated: new Date().toISOString(),
+        source: 'fallback'
+      },
+      {
+        symbol: 'DOGE',
+        name: 'Dogecoin',
+        price_usd: dogeBase * (1 + variation()),
+        price_inr: dogeBase * 83.5 * (1 + variation()),
+        change_24h: (Math.random() - 0.5) * 12, // ±6% change
+        icon: 'D',
         lastUpdated: new Date().toISOString(),
         source: 'fallback'
       }

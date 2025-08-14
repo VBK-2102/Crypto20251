@@ -24,7 +24,11 @@ if (process.env.NODE_ENV === 'development') {
 let db: Db;
 
 clientPromise.then(async (connectedClient) => {
-  db = connectedClient.db(); // Connect to the default database specified in the URI
+  // Use the database name from environment variable instead of default
+  const dbName = process.env.MONGODB_DB_NAME || 'cryptopay';
+  db = connectedClient.db(dbName);
+  console.log(`Connected to MongoDB database: ${dbName}`);
+  
   // Ensure collections exist
   try {
     await db.createCollection('users', { writeConcern: { w: 'majority' } });
@@ -40,7 +44,7 @@ clientPromise.then(async (connectedClient) => {
   process.exit(1); // Exit if database connection fails
 });
 
-export { clientPromise };
+export { clientPromise, ObjectId };
 
 export function getDb(): Db {
   if (!db) {
