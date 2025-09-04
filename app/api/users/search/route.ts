@@ -40,7 +40,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Search users by name or email from database
-    const { users } = getCollections();
+    const collections = await getCollections();
+    const { users } = collections;
     
     // Convert userId to ObjectId if it's a string
     let userIdFilter;

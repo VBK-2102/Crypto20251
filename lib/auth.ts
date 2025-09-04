@@ -26,7 +26,7 @@ export const auth = {
   async getUserById(userId: string): Promise<User | null> {
     try {
       console.log("Getting user by ID:", userId);
-      const db = getDb();
+      const db = await getDb();
       const usersCollection = db.collection('users');
       
       // Convert string ID to ObjectId

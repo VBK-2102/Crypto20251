@@ -17,7 +17,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Get collections
-    const { users, transactions, cryptoPrices } = getCollections()
+    const collections = await getCollections();
+    const { users, transactions, cryptoPrices } = collections
 
     // Find sender and recipient
     const sender = await users.findOne({ _id: new ObjectId(user.userId) })

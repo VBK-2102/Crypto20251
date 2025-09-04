@@ -8,21 +8,33 @@ if (!uri) {
   throw new Error('Please add your MONGODB_URI to .env.local');
 }
 
+// Configure MongoDB client with optimized settings for serverless environments
+const options = {
+  maxPoolSize: 1, // Limit connections in serverless environment
+  serverSelectionTimeoutMS: 5000, // Reduce server selection timeout
+  socketTimeoutMS: 30000, // Socket timeout
+  connectTimeoutMS: 10000, // Connection timeout
+  keepAlive: true, // Enable keep-alive
+  maxIdleTimeMS: 120000 // Set max idle time appropriate for serverless
+};
+
 if (process.env.NODE_ENV === 'development') {
   // In development mode, use a global variable so that the client is not recreated on every hot reload
   if (!(global as any)._mongoClientPromise) {
-    client = new MongoClient(uri);
+    client = new MongoClient(uri, options);
     (global as any)._mongoClientPromise = client.connect();
   }
   clientPromise = (global as any)._mongoClientPromise;
 } else {
   // In production mode, it's best to not use a global variable.
-  client = new MongoClient(uri);
+  client = new MongoClient(uri, options);
   clientPromise = client.connect();
 }
 
 let db: Db;
 
+// Initialize database connection asynchronously but don't terminate the process on failure
+// This allows individual API routes to handle connection failures gracefully
 clientPromise.then(async (connectedClient) => {
   // Use the database name from environment variable instead of default
   const dbName = process.env.MONGODB_DB_NAME || 'cryptopay';
@@ -41,20 +53,29 @@ clientPromise.then(async (connectedClient) => {
   }
 }).catch(error => {
   console.error("Failed to connect to MongoDB:", error);
-  process.exit(1); // Exit if database connection fails
+  // Don't call process.exit in serverless environment
+  // Let individual routes handle connection failures
 });
 
 export { clientPromise, ObjectId };
 
-export function getDb(): Db {
+export async function getDb(): Promise<Db> {
   if (!db) {
-    throw new Error("Database not initialized. Ensure clientPromise has resolved.");
+    try {
+      // If db is not initialized yet, wait for the connection to be established
+      const client = await clientPromise;
+      const dbName = process.env.MONGODB_DB_NAME || 'cryptopay';
+      db = client.db(dbName);
+    } catch (error) {
+      console.error("Error initializing database connection:", error);
+      throw new Error("Failed to initialize database connection");
+    }
   }
   return db;
 }
 
-export function getCollections() {
-  const database = getDb();
+export async function getCollections() {
+  const database = await getDb();
   return {
     users: database.collection<User>('users'),
     transactions: database.collection<Transaction>('transactions'),
@@ -101,11 +122,12 @@ export interface CryptoPrice {
   updated_at: Date;
 }
 
-// Placeholder for db operations (will be implemented in Phase 3)
+// Database operations implementation
 export const dbOperations = {
   // User operations
   async createUser(email: string, passwordHash: string, fullName: string, phone?: string): Promise<User> {
-    const { users } = getCollections();
+    const collections = await getCollections();
+    const { users } = collections;
     const newUser: User = {
       email,
       password_hash: passwordHash,
@@ -129,7 +151,8 @@ export const dbOperations = {
         return null;
       }
       
-      const { users } = getCollections();
+      const collections = await getCollections();
+      const { users } = collections;
       console.log(`Looking up user by email: ${email}`);
       
       const user = await users.findOne({ email });
@@ -154,7 +177,8 @@ export const dbOperations = {
       }
       
       console.log(`Getting user by ID: ${id}`);
-      const { users } = getCollections();
+      const collections = await getCollections();
+      const { users } = collections;
       
       let objectId: ObjectId;
       try {
@@ -179,7 +203,8 @@ export const dbOperations = {
     }
   },
   async updateUserBalance(userId: string, amount: number): Promise<number> {
-    const { users } = getCollections();
+    const collections = await getCollections();
+    const { users } = collections;
     const result = await users.findOneAndUpdate(
       { _id: new ObjectId(userId) },
       { $inc: { wallet_balance: amount }, $set: { updated_at: new Date() } },
@@ -192,7 +217,8 @@ export const dbOperations = {
   },
       
   async createTransaction(transaction: Omit<Transaction, "_id" | "created_at" | "updated_at">): Promise<Transaction> {
-    const { transactions } = getCollections();
+    const collections = await getCollections();
+    const { transactions } = collections;
     const newTransaction: Transaction = {
       ...transaction,
       user_id: new ObjectId(transaction.user_id), // Convert to ObjectId
@@ -206,12 +232,14 @@ export const dbOperations = {
     return { ...newTransaction, _id: result.insertedId };
   },
   async getUserTransactions(userId: string): Promise<Transaction[]> {
-    const { transactions } = getCollections();
+    const collections = await getCollections();
+    const { transactions } = collections;
     const transactionsData = await transactions.find({ user_id: new ObjectId(userId) }).sort({ created_at: -1 }).limit(50).toArray();
     return transactionsData;
   },
   async getAllTransactions(): Promise<(Transaction & { email: string; full_name: string })[]> {
-    const { transactions, users } = getCollections();
+    const collections = await getCollections();
+    const { transactions, users } = collections;
     const transactionsWithUserInfo = await transactions.aggregate([
       {
         $lookup: {
@@ -254,7 +282,8 @@ export const dbOperations = {
     return transactionsWithUserInfo as (Transaction & { email: string; full_name: string })[];
   },
   async updateTransactionStatus(id: string, status: Transaction["status"]): Promise<Transaction> {
-    const { transactions } = getCollections();
+    const collections = await getCollections();
+    const { transactions } = collections;
     const result = await transactions.findOneAndUpdate(
       { _id: new ObjectId(id) },
       { $set: { status: status, updated_at: new Date() } },
@@ -267,19 +296,22 @@ export const dbOperations = {
   },
 
   async getTransactionByHash(transactionHash: string): Promise<Transaction | null> {
-    const { transactions } = getCollections();
+    const collections = await getCollections();
+    const { transactions } = collections;
     const transaction = await transactions.findOne({ transaction_hash: transactionHash });
     return transaction;
   },
 
   // Crypto price operations
   async getCryptoPrices(): Promise<CryptoPrice[]> {
-    const { cryptoPrices } = getCollections();
+    const collections = await getCollections();
+    const { cryptoPrices } = collections;
     const prices = await cryptoPrices.find({}).sort({ symbol: 1 }).toArray();
     return prices;
   },
   async updateCryptoPrice(symbol: string, priceInr: number, priceUsd: number, change24h: number): Promise<CryptoPrice> {
-    const { cryptoPrices } = getCollections();
+    const collections = await getCollections();
+    const { cryptoPrices } = collections;
     const result = await cryptoPrices.findOneAndUpdate(
       { symbol: symbol },
       {

@@ -33,7 +33,8 @@ export async function GET(request: NextRequest) {
     console.log("Transactions API: User authenticated:", user.email, "ID:", user.userId)
     
     // Get transactions collection
-    const { transactions } = getCollections()
+    const collections = await getCollections();
+    const { transactions } = collections
     
     // Convert userId string to ObjectId
     let userObjectId
@@ -93,7 +94,8 @@ export async function POST(request: NextRequest) {
     const transactionData = await request.json()
 
     // Get transactions collection
-    const { transactions } = getCollections()
+    const collections = await getCollections();
+    const { transactions } = collections
     
     // Convert userId string to ObjectId
     let userObjectId

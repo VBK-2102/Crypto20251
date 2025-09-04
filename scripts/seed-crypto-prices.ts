@@ -6,7 +6,8 @@ async function seedCryptoPrices() {
     console.log('Connecting to MongoDB...');
     await clientPromise;
     
-    const { cryptoPrices } = getCollections();
+    const collections = await getCollections();
+    const { cryptoPrices } = collections;
     
     // Check if collection already has data
     const count = await cryptoPrices.countDocuments();
