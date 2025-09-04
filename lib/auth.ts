@@ -4,6 +4,7 @@ import { authUtils } from "./auth-utils"
 import type { JWTPayload } from "./auth-utils"
 
 export interface User {
+  [x: string]: any;
   userId: string;
   email: string;
   fullName?: string;
@@ -124,4 +125,26 @@ export const auth = {
       return null
     }
   },
+  
+  // Static version that doesn't rely on request.headers
+  // Use this for static rendering contexts
+  async getUserFromToken(token: string): Promise<User | null> {
+    try {
+      if (!token || token.split('.').length !== 3) {
+        console.error("Invalid token format");
+        return null;
+      }
+      
+      const payload = this.verifyToken(token)
+      if (!payload) {
+        console.error("Token verification failed");
+        return null
+      }
+      
+      return this.getUserById(payload.userId);
+    } catch (error) {
+      console.error("Error getting user from token:", error)
+      return null
+    }
+  }
 }

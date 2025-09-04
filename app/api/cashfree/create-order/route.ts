@@ -1,6 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
-
+export const dynamic = 'force-dynamic';
 const CASHFREE_CLIENT_ID = "TEST10783812f10718d0b666328656b221838701";
 const CASHFREE_CLIENT_SECRET = "cfsk_ma_test_055a585aa73adc293efd874e702cd10c_23aa53e9";
 const CASHFREE_BASE_URL = "https://sandbox.cashfree.com/pg/orders";

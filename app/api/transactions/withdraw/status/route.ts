@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { dbOperations as db, clientPromise } from '@/lib/db';
-
+export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   await clientPromise; // Ensure DB connection is established
   try {

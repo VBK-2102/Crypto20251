@@ -1,6 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { dbOperations as db } from "@/lib/db"
+
+// This route requires dynamic features (headers/cookies access for authentication)
+// so we explicitly mark it as force-dynamic
 export const dynamic = 'force-dynamic';
 export async function GET(request: NextRequest) {
   try {
