@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from "next/server";
 import { dbOperations as db, clientPromise } from "@/lib/db";
 import { auth } from "@/lib/auth";
