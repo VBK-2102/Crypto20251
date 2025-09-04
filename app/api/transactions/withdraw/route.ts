@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { dbOperations as db, clientPromise, ObjectId } from '@/lib/db';
 import { paymentGateways } from '@/lib/payment-gateways';
 import { v4 as uuidv4 } from 'uuid';
-
+export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   await clientPromise; // Ensure DB connection is established
   try {
