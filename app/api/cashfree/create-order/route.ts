@@ -1,5 +1,6 @@
 
 import { NextRequest, NextResponse } from "next/server";
+import { clientPromise } from "@/lib/db";
 export const dynamic = 'force-dynamic';
 const CASHFREE_CLIENT_ID = "TEST10783812f10718d0b666328656b221838701";
 const CASHFREE_CLIENT_SECRET = "cfsk_ma_test_055a585aa73adc293efd874e702cd10c_23aa53e9";
@@ -7,6 +8,9 @@ const CASHFREE_BASE_URL = "https://sandbox.cashfree.com/pg/orders";
 const CASHFREE_API_VERSION = "2022-09-01";
 
 export async function POST(request: NextRequest) {
+  // Ensure database connection is established before proceeding
+  await clientPromise;
+  
   try {
     console.log("Received request to create Cashfree order");
     const body = await request.json();

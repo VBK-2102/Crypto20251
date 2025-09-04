@@ -5,8 +5,12 @@ import { type NextRequest, NextResponse } from "next/server"
 import { simpleAuth } from "@/lib/simple-auth"
 import { auth } from "@/lib/auth"
 import { ObjectId } from "mongodb"
+import { clientPromise } from "@/lib/db"
 
 export async function POST(request: NextRequest) {
+  // Ensure database connection is established before proceeding
+  await clientPromise;
+  
   try {
     // Parse request body with error handling
     let email: string;

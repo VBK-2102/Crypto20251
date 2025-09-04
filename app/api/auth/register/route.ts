@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic';
 import { type NextRequest, NextResponse } from "next/server"
 import { simpleAuth } from "@/lib/simple-auth"
-import { dbOperations as db } from "@/lib/db"
+import { dbOperations as db, clientPromise } from "@/lib/db"
 import { auth } from "@/lib/auth"
 
 export async function POST(request: NextRequest) {
+  // Ensure database connection is established before proceeding
+  await clientPromise;
+  
   try {
     const { email, password, fullName } = await request.json()
 
