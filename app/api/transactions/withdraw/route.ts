@@ -39,12 +39,12 @@ export async function POST(request: NextRequest) {
 
     // Create a withdrawal transaction in the database
     const withdrawalTransaction = {
-      user_id: user.userId,
+      user_id: new ObjectId(user.userId),
       transaction_hash: transactionId,
       amount: -amount, // Negative amount for withdrawal
       currency: currency,
-      type: "withdrawal",
-      status: "pending", // Initially pending until processed
+      type: "withdrawal" as const,
+  status: "pending" as const, // Initially pending until processed
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       payment_method: withdrawalMethod,
@@ -91,19 +91,23 @@ export async function POST(request: NextRequest) {
         }
       }, 5000); // Simulate 5 second processing time
 
-    return NextResponse.json({
-      success: true,
-      message: `Withdrawal of ${currency} ${netAmount.toFixed(2)} initiated`,
-      transactionId,
-      amount: netAmount,
-      fees,
-      currency,
-      withdrawalMethod,
-      status: "pending",
-      newBalance
-    })
+      return NextResponse.json({
+        success: true,
+        message: `Withdrawal of ${currency} ${netAmount.toFixed(2)} initiated`,
+        transactionId,
+        amount: netAmount,
+        fees,
+        currency,
+        withdrawalMethod,
+        status: "pending",
+        newBalance
+      })
+    } catch (error) {
+      console.error("Withdrawal error:", error)
+      return NextResponse.json({ success: false, error: "Failed to process withdrawal" }, { status: 500 })
+    }
   } catch (error) {
-    console.error("Withdrawal error:", error)
-    return NextResponse.json({ success: false, error: "Failed to process withdrawal" }, { status: 500 })
+    console.error("Unexpected error in withdrawal endpoint:", error)
+    return NextResponse.json({ success: false, error: "Internal server error" }, { status: 500 })
   }
 }

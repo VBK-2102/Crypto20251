@@ -1,4 +1,4 @@
-// File: C:\Users\Admin\Desktop\Zerokost\Cryptopppp\app\api\crypto\wallet-balances\route.ts
+// File: C:\Users\Admin\Desktop\Zerokost\Cryptopppp\Crypto20251\app\api\crypto\wallet-balances\route.ts
 import * as entry from '../../../../../../app/api/crypto/wallet-balances/route.js'
 import type { NextRequest } from 'next/server.js'
 

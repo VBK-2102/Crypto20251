@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { TrendingUp, TrendingDown, Plus, ArrowUpRight, LogOut, Shield, Bitcoin, Wallet, RefreshCw, ArrowRightLeft, Plug, CreditCard, User } from 'lucide-react'
-import { AddMoneyModal } from "./add-money-modal"
+import CashfreeCardForm from "./cashfree-card-form";
 import { WithdrawModal } from "./withdraw-modal"
 import { SendCryptoModal } from "./send-crypto-modal"
 import { TransactionHistory } from "./transaction-history"
@@ -242,25 +242,63 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
                   {walletAddress.substring(0, 6)}...{walletAddress.substring(walletAddress.length - 4)}
                 </Button>
               ) : (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={connectWallet} 
-                  disabled={isConnecting}
-                  className={isConnecting ? "opacity-70 cursor-not-allowed" : ""}
-                >
-                  {isConnecting ? (
-                    <>
-                      <span className="animate-spin mr-2">⟳</span>
-                      Connecting...
-                    </>
-                  ) : (
-                    <>
-                      <Plug className="h-4 w-4 mr-2" />
-                      Connect Wallet
-                    </>
-                  )}
-                </Button>
+                (() => {
+                  // Detect mobile device
+                  const isMobile = typeof window !== 'undefined' && /android|iphone|ipad|ipod/i.test(window.navigator.userAgent);
+                  const hasEthereum = typeof window !== 'undefined' && (window as any).ethereum;
+                  if (isMobile && !hasEthereum) {
+                    // Use your deployed domain in place of localhost if needed
+                    const dappUrl = encodeURIComponent(window.location.host);
+                    const metamaskDeepLink = `https://metamask.app.link/dapp/${dappUrl}`;
+                    return (
+                      <a href={metamaskDeepLink} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm">
+                          <Plug className="h-4 w-4 mr-2" />
+                          Open in MetaMask App
+                        </Button>
+                      </a>
+                    );
+                  }
+                  // Show a message for mobile users in MetaMask browser
+                  const isMetaMaskInApp = typeof window !== 'undefined' && /MetaMask/i.test(window.navigator.userAgent);
+                  const handleMobileConnect = () => {
+                    if (isMobile && !isMetaMaskInApp) {
+                      // Open MetaMask app with deep link to this dapp
+                      const dappUrl = encodeURIComponent(window.location.host);
+                      window.location.href = `https://metamask.app.link/dapp/${dappUrl}`;
+                    } else {
+                      connectWallet();
+                    }
+                  };
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+                      {isMobile && isMetaMaskInApp && (
+                        <div style={{ color: '#555', fontSize: 13, marginBottom: 4, maxWidth: 220 }}>
+                          If you are in the MetaMask app, tap <b>Connect Wallet</b> below to connect your wallet.
+                        </div>
+                      )}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleMobileConnect} 
+                        disabled={isConnecting}
+                        className={isConnecting ? "opacity-70 cursor-not-allowed" : ""}
+                      >
+                        {isConnecting ? (
+                          <>
+                            <span className="animate-spin mr-2">⟳</span>
+                            Connecting...
+                          </>
+                        ) : (
+                          <>
+                            <Plug className="h-4 w-4 mr-2" />
+                            Connect Wallet
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  );
+                })()
               )}
               <Button variant="outline" size="sm" onClick={() => window.location.href = '/profile'}>
                 <User className="h-4 w-4 mr-2" />
@@ -481,12 +519,18 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
       </div>
 
       {/* Modals */}
-      <AddMoneyModal
-        isOpen={showAddMoney}
-        onClose={() => setShowAddMoney(false)}
-        userId={user.id}
-        onSuccess={fetchBalances}
-      />
+      {showAddMoney && (
+        <div style={{ background: "#fff", padding: 24, borderRadius: 8, boxShadow: "0 2px 8px #0001", position: "fixed", top: 80, left: 0, right: 0, margin: "auto", maxWidth: 420, zIndex: 1000 }}>
+          <button onClick={() => setShowAddMoney(false)} style={{ float: "right", background: "none", border: "none", fontSize: 18, cursor: "pointer" }}>×</button>
+          <CashfreeCardForm 
+            user={{ email: user.email, phone: user.phone }}
+            onSuccess={() => {
+              setShowAddMoney(false);
+              fetchBalances();
+            }}
+          />
+        </div>
+      )}
       <SendCryptoModal
         isOpen={showSendCrypto}
         onClose={() => setShowSendCrypto(false)}
