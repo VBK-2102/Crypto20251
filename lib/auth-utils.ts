@@ -1,4 +1,4 @@
-import jwt from "jsonwebtoken"
+import * as jwt from 'jsonwebtoken'
 import bcrypt from "bcryptjs"
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key"
@@ -22,6 +22,16 @@ export const authUtils = {
 
   async comparePassword(password: string, hash: string): Promise<boolean> {
     try {
+      if (!password) {
+        console.error("Empty password provided to comparePassword");
+        return false;
+      }
+      
+      if (!hash) {
+        console.error("Empty hash provided to comparePassword");
+        return false;
+      }
+      
       return await bcrypt.compare(password, hash)
     } catch (error) {
       console.error("Error comparing password:", error)
@@ -31,11 +41,21 @@ export const authUtils = {
 
   generateToken(payload: JWTPayload): string {
     try {
+      // Validate payload fields
+      if (!payload.userId) {
+        console.error("Missing userId in token payload");
+        throw new Error("Invalid token payload: userId is required");
+      }
+      if (!payload.email) {
+        console.error("Missing email in token payload");
+        throw new Error("Invalid token payload: email is required");
+      }
+      
       const expiresIn = process.env.JWT_EXPIRES_IN || "7d"
       return jwt.sign(payload, JWT_SECRET, { expiresIn })
     } catch (error) {
       console.error("Error generating token:", error)
-      throw new Error("Failed to generate token")
+      throw new Error("Failed to generate token: " + (error instanceof Error ? error.message : "unknown error"))
     }
   },
 

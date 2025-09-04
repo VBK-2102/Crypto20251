@@ -1,6 +1,8 @@
 {
-  "/api/transactions/route": "app/api/transactions/route.js",
+  "/_not-found/page": "app/_not-found/page.js",
   "/api/crypto/wallet-balances/route": "app/api/crypto/wallet-balances/route.js",
   "/api/crypto/live-prices/route": "app/api/crypto/live-prices/route.js",
-  "/page": "app/page.js"
+  "/api/transactions/route": "app/api/transactions/route.js",
+  "/page": "app/page.js",
+  "/api/auth/login/route": "app/api/auth/login/route.js"
 }

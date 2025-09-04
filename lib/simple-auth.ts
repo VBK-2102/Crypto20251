@@ -4,8 +4,36 @@ import { authUtils } from "./auth-utils";
 
 export const simpleAuth = {
   async login(email: string, password: string): Promise<User | null> {
-    const user = await db.getUserByEmail(email);
-    if (user && (await authUtils.comparePassword(password, user.password_hash))) {
+    try {
+      if (!email) {
+        console.error("Login attempt with empty email");
+        throw new Error("Email is required");
+      }
+      
+      if (!password) {
+        console.error("Login attempt with empty password for email:", email);
+        throw new Error("Password is required");
+      }
+      
+      const user = await db.getUserByEmail(email);
+      
+      if (!user) {
+        console.log(`Login failed: No user found with email ${email}`);
+        return null;
+      }
+      
+      if (!user.password_hash) {
+        console.error(`User found but has no password hash: ${email}`);
+        throw new Error("User account is invalid");
+      }
+      
+      const passwordMatch = await authUtils.comparePassword(password, user.password_hash);
+      
+      if (!passwordMatch) {
+        console.log(`Login failed: Invalid password for user ${email}`);
+        return null;
+      }
+      
       // Return a simplified user object for the frontend, excluding sensitive data
       return {
         _id: user._id,
@@ -17,8 +45,10 @@ export const simpleAuth = {
         updated_at: user.updated_at,
         // Do not return password_hash
       } as User;
+    } catch (error) {
+      console.error("Login error:", error);
+      throw error; // Rethrow to be handled by the route handler
     }
-    return null;
   },
 
   async register(email: string, password: string, fullName: string): Promise<User> {
@@ -47,21 +77,25 @@ export const simpleAuth = {
   generateToken(user: User): string {
     // Generate a proper JWT token
     return authUtils.generateToken({
-      userId: user._id?.toHexString(),
+      userId: user._id?.toHexString() ?? '',
       email: user.email,
       isAdmin: user.is_admin || false
     });
   },
 
   // This method is deprecated - use authUtils.verifyToken instead
-  verifyToken(token: string): User | null {
+  verifyToken(token: string): User | null | undefined {
     try {
       // Verify the JWT token
       const payload = authUtils.verifyToken(token);
       if (!payload) return null;
       
       // Get the user from the database using the userId from the payload
-      return db.getUserById(payload.userId);
+      const userPromise = (async () => {
+        const user = await db.getUserById(payload.userId);
+        if (!user) return null;
+        return user;
+      })();
     } catch (error) {
       console.error("Token verification failed:", error);
       return null;

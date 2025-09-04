@@ -123,14 +123,60 @@ export const dbOperations = {
     return { ...newUser, _id: result.insertedId };
   },
   async getUserByEmail(email: string): Promise<User | null> {
-    const { users } = getCollections();
-    const user = await users.findOne({ email });
-    return user;
+    try {
+      if (!email) {
+        console.error("getUserByEmail called with empty email");
+        return null;
+      }
+      
+      const { users } = getCollections();
+      console.log(`Looking up user by email: ${email}`);
+      
+      const user = await users.findOne({ email });
+      
+      if (user) {
+        console.log(`User found with email: ${email}`);
+      } else {
+        console.log(`No user found with email: ${email}`);
+      }
+      
+      return user;
+    } catch (error) {
+      console.error(`Error in getUserByEmail for ${email}:`, error);
+      throw new Error(`Database error when finding user: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   },
   async getUserById(id: string): Promise<User | null> {
-    const { users } = getCollections();
-    const user = await users.findOne({ _id: new ObjectId(id) });
-    return user;
+    try {
+      if (!id) {
+        console.error("getUserById called with empty id");
+        return null;
+      }
+      
+      console.log(`Getting user by ID: ${id}`);
+      const { users } = getCollections();
+      
+      let objectId: ObjectId;
+      try {
+        objectId = new ObjectId(id);
+      } catch (error) {
+        console.error(`Invalid ObjectId format: ${id}`);
+        return null;
+      }
+      
+      const user = await users.findOne({ _id: objectId });
+      
+      if (user) {
+        console.log(`User found with ID: ${id}`);
+      } else {
+        console.log(`User not found with ID: ${id}`);
+      }
+      
+      return user;
+    } catch (error) {
+      console.error(`Error in getUserById for ${id}:`, error);
+      throw new Error(`Database error when finding user by ID: ${error instanceof Error ? error.message : 'unknown error'}`);
+    }
   },
   async updateUserBalance(userId: string, amount: number): Promise<number> {
     const { users } = getCollections();
