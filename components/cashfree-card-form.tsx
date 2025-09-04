@@ -19,15 +19,26 @@ const CashfreeCardForm: React.FC<CashfreeCardFormProps> = ({ user, onSuccess }) 
     try {
       setLoading(true);
       // Call backend to create order
-      const res = await fetch("http://localhost:5000/api/create-order", {
+      const res = await fetch("/api/cashfree/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, email, phone }),
+        body: JSON.stringify({ 
+          amount, 
+          currency: "INR", 
+          customer_id: "cust_" + Date.now(),
+          customer_email: email, 
+          customer_phone: phone 
+        }),
       });
       const data = await res.json();
-      const paymentSessionId = data.payment_session_id;
+      if (!data.success) {
+        alert(data.error || "Failed to create order");
+        return;
+      }
+      const orderData = data.data;
+      const paymentSessionId = orderData.payment_session_id;
       if (!paymentSessionId) {
-        alert("Failed to create order");
+        alert("Failed to get payment session ID");
         return;
       }
       // Open Cashfree checkout modal
