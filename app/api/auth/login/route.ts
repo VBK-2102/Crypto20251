@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { type NextRequest, NextResponse } from "next/server"
 import { simpleAuth } from "@/lib/simple-auth"
 import { auth } from "@/lib/auth"

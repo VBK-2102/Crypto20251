@@ -1,3 +1,4 @@
+export const dynamic = 'force-dynamic';
 import { type NextRequest, NextResponse } from "next/server"
 import { simpleAuth } from "@/lib/simple-auth"
 import { dbOperations as db } from "@/lib/db"
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
 
     // Register user in the database
     const user = await simpleAuth.register(email, password, fullName)
+    if (!user._id) {
+      return NextResponse.json({ success: false, error: "User ID is missing after registration" }, { status: 500 })
+    }
     const token = auth.generateToken({
       userId: user._id.toHexString(),
       email: user.email,
