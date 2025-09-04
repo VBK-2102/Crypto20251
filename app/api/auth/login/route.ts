@@ -18,7 +18,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Ensure we have a valid ObjectId for the user ID
-    const userId = user._id instanceof ObjectId ? user._id.toHexString() : user._id.toString();
+    if (!user._id) {
+      return NextResponse.json({ success: false, error: "User ID is missing" }, { status: 500 })
+    }
+    const userId =
+      user._id instanceof ObjectId
+        ? user._id.toHexString()
+        : typeof user._id === "string"
+        ? user._id
+        : user._id && typeof (user._id as any).toString === "function"
+        ? (user._id as any).toString()
+        : "";
     
     const token = auth.generateToken({
       userId: userId,

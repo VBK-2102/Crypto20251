@@ -84,7 +84,12 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
       }
 
       // Handle live crypto prices
-      let livePrices = []
+      let livePrices: {
+        symbol: string
+        price_usd: number
+        price_inr: number
+        change_24h: number
+      }[] = []
       if (livePricesRes.ok) {
         const pricesData = await livePricesRes.json()
         // Transform the API response to the expected format
@@ -494,7 +499,7 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
 
         {/* Live Crypto Market Data */}
         <div className="mb-8">
-          <LiveCryptoDashboard token={token} />
+          <LiveCryptoDashboard />
         </div>
 
         {/* Real-time Status */}
@@ -543,7 +548,6 @@ export function SimpleDashboard({ user, token, onLogout, onShowAdmin }: SimpleDa
       <WithdrawModal
         isOpen={showWithdraw}
         onClose={() => setShowWithdraw(false)}
-        token={token}
         balances={walletBalances}
         onSuccess={fetchBalances}
       />
