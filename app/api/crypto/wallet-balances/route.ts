@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server"
 import { dbOperations as db, clientPromise } from "@/lib/db"
 import { auth } from "@/lib/auth"
 
+// This route requires dynamic features (headers/cookies access for authentication)
+// so we explicitly mark it as force-dynamic
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   await clientPromise
   
