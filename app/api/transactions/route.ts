@@ -1,8 +1,26 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
-import { getCollections, ObjectId } from "@/lib/db"
+import { getCollections, ObjectId, clientPromise } from "@/lib/db"
 export const dynamic = 'force-dynamic';
+
+// Establish database connection at module level to improve reliability
+let dbConnectionPromise = clientPromise.catch(err => {
+  console.error("Failed to connect to database:", err);
+  throw err;
+});
 export async function GET(request: NextRequest) {
+  // Ensure database connection is established before proceeding
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
+  
   try {
     console.log("Transactions API: Processing request")
     const user = await auth.getUserFromRequest(request)
@@ -53,6 +71,18 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  // Ensure database connection is established before proceeding
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
+  
   try {
     const user = await auth.getUserFromRequest(request)
 

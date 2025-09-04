@@ -7,9 +7,24 @@ import { auth } from "@/lib/auth"
 import { ObjectId } from "mongodb"
 import { clientPromise } from "@/lib/db"
 
+// Establish database connection at module level to improve reliability
+let dbConnectionPromise = clientPromise.catch(err => {
+  console.error("Failed to connect to database:", err);
+  throw err;
+});
+
 export async function POST(request: NextRequest) {
   // Ensure database connection is established before proceeding
-  await clientPromise;
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
   
   try {
     // Parse request body with error handling

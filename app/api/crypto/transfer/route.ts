@@ -1,7 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { binanceAPI } from "@/lib/binance-api"
+import { clientPromise } from "@/lib/db"
+
+// Establish database connection at module level to improve reliability
+let dbConnectionPromise = clientPromise.catch(err => {
+  console.error("Failed to connect to database:", err);
+  throw err;
+});
 
 export async function POST(request: NextRequest) {
+  // Ensure database connection is established before proceeding
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
   try {
     const body = await request.json()
     const { fromAddress, toAddress, amount, symbol } = body

@@ -1,6 +1,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { clientPromise } from "@/lib/db";
+
+// Establish database connection at module level to improve reliability
+let dbConnectionPromise = clientPromise.catch(err => {
+  console.error("Failed to connect to database:", err);
+  throw err;
+});
 export const dynamic = 'force-dynamic';
 const CASHFREE_CLIENT_ID = "TEST10783812f10718d0b666328656b221838701";
 const CASHFREE_CLIENT_SECRET = "cfsk_ma_test_055a585aa73adc293efd874e702cd10c_23aa53e9";
@@ -9,7 +15,16 @@ const CASHFREE_API_VERSION = "2022-09-01";
 
 export async function POST(request: NextRequest) {
   // Ensure database connection is established before proceeding
-  await clientPromise;
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
   
   try {
     console.log("Received request to create Cashfree order");

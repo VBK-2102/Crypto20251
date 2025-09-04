@@ -3,8 +3,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { dbOperations as db, clientPromise } from "@/lib/db";
 import { auth } from "@/lib/auth";
 
+// Establish database connection at module level to improve reliability
+let dbConnectionPromise = clientPromise.catch(err => {
+  console.error("Failed to connect to database:", err);
+  throw err;
+});
+
 export async function GET(request: NextRequest) {
-  await clientPromise; // Ensure DB connection
+  // Ensure database connection is established before proceeding
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
 
   try {
     const user = await auth.getUserFromRequest(request);

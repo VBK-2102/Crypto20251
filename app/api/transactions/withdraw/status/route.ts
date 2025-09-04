@@ -2,8 +2,25 @@ import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { dbOperations as db, clientPromise } from '@/lib/db';
 export const dynamic = 'force-dynamic';
+
+// Establish database connection at module level to improve reliability
+let dbConnectionPromise = clientPromise.catch(err => {
+  console.error("Failed to connect to database:", err);
+  throw err;
+});
+
 export async function GET(request: Request) {
-  await clientPromise; // Ensure DB connection is established
+  // Ensure database connection is established before proceeding
+  try {
+    await dbConnectionPromise;
+  } catch (error) {
+    console.error("Database connection error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      error: "Database connection failed", 
+      details: error instanceof Error ? error.message : "Unknown error" 
+    }, { status: 500 });
+  }
   try {
     // Get the transaction ID from the URL
     const url = new URL(request.url);
