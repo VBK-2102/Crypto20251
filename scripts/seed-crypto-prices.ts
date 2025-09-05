@@ -18,7 +18,6 @@ async function seedCryptoPrices() {
     
     // Insert mock crypto prices
     const result = await cryptoPrices.insertMany(mockCryptoPrices);
-    
     console.log(`Successfully seeded ${result.insertedCount} crypto prices into the database.`);
     console.log('Crypto prices added:', mockCryptoPrices.map(c => c.symbol).join(', '));
     

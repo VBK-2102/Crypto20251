@@ -14,7 +14,7 @@ const options = {
   serverSelectionTimeoutMS: 5000, // Reduce server selection timeout
   socketTimeoutMS: 30000, // Socket timeout
   connectTimeoutMS: 10000, // Connection timeout
-  keepAlive: true, // Enable keep-alive
+   // Enable keep-alive
   maxIdleTimeMS: 120000 // Set max idle time appropriate for serverless
 };
 
@@ -36,20 +36,24 @@ let db: Db;
 // Initialize database connection asynchronously but don't terminate the process on failure
 // This allows individual API routes to handle connection failures gracefully
 clientPromise.then(async (connectedClient) => {
-  // Use the database name from environment variable instead of default
-  const dbName = process.env.MONGODB_DB_NAME || 'cryptopay';
-  db = connectedClient.db(dbName);
-  console.log(`Connected to MongoDB database: ${dbName}`);
-  
-  // Ensure collections exist
   try {
-    await db.createCollection('users', { writeConcern: { w: 'majority' } });
-    await db.createCollection('transactions', { writeConcern: { w: 'majority' } });
-    await db.createCollection('crypto_prices', { writeConcern: { w: 'majority' } });
-    console.log("MongoDB collections ensured.");
-  } catch (e) {
-    // Collection already exists, or other error
-    console.log("Collections might already exist or error creating them:", (e as Error).message);
+    // Use the database name from environment variable instead of default
+    const dbName = process.env.MONGODB_DB_NAME || 'cryptopay';
+    db = connectedClient.db(dbName);
+    console.log(`Connected to MongoDB database: ${dbName}`);
+    
+    // Ensure collections exist
+    try {
+      await db.createCollection('users', { writeConcern: { w: 'majority' } });
+      await db.createCollection('transactions', { writeConcern: { w: 'majority' } });
+      await db.createCollection('crypto_prices', { writeConcern: { w: 'majority' } });
+      console.log("MongoDB collections ensured.");
+    } catch (e) {
+      // Collection already exists, or other error
+      console.log("Collections might already exist or error creating them:", (e as Error).message);
+    }
+  } catch (error) {
+    console.error("Error initializing database:", error);
   }
 }).catch(error => {
   console.error("Failed to connect to MongoDB:", error);
@@ -68,6 +72,13 @@ export async function getDb(): Promise<Db> {
       db = client.db(dbName);
     } catch (error) {
       console.error("Error initializing database connection:", error);
+      
+      // Return a mock DB object instead of throwing during development
+      if (process.env.NODE_ENV === 'development') {
+        console.warn("Using mock database for development");
+        return {} as unknown as Db;
+      }
+      
       throw new Error("Failed to initialize database connection");
     }
   }
@@ -75,12 +86,26 @@ export async function getDb(): Promise<Db> {
 }
 
 export async function getCollections() {
-  const database = await getDb();
-  return {
-    users: database.collection<User>('users'),
-    transactions: database.collection<Transaction>('transactions'),
-    cryptoPrices: database.collection<CryptoPrice>('crypto_prices'),
-  };
+  try {
+    const database = await getDb();
+    return {
+      users: database.collection<User>('users'),
+      transactions: database.collection<Transaction>('transactions'),
+      cryptoPrices: database.collection<CryptoPrice>('crypto_prices'),
+    };
+  } catch (error) {
+    console.error("Error getting collections:", error);
+    // Return mock collections during development
+    if (process.env.NODE_ENV === 'development') {
+      console.warn("Using mock collections for development");
+      return {
+        users: {} as Collection<User>,
+        transactions: {} as Collection<Transaction>,
+        cryptoPrices: {} as Collection<CryptoPrice>,
+      };
+    }
+    throw error;
+  }
 }
 
 // Define interfaces for collections

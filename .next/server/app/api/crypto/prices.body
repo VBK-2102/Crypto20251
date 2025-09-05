@@ -1,0 +1,1 @@
+{"success":true,"data":[{"symbol":"BTC","name":"Bitcoin","price_inr":3500000,"price_usd":42000,"change_24h":2.5,"icon":"₿"},{"symbol":"ETH","name":"Ethereum","price_inr":280000,"price_usd":3200,"change_24h":-1.2,"icon":"Ξ"},{"symbol":"USDT","name":"Tether","price_inr":83.5,"price_usd":1,"change_24h":0.1,"icon":"₮"}]}
